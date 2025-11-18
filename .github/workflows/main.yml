@@ -1,42 +1,26 @@
-name: Build and Test on Windows Server 2022
+name: Windows 2022 RDP by Ngrok
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
-  windows_job:
+  rdp:
     runs-on: windows-2022
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up .NET (ifใช้ .NET)
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '7.0.x'
-
-      - name: Install dependencies
+      - name: Enable RDP
         run: |
-          echo Installing dependencies…
-          # ตัวอย่าง: nuget restore, npm install หรืออื่นๆ
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          net user runneradmin "Password123!"
 
-      - name: Build solution
+      - name: Download ngrok
         run: |
-          echo Building …
-          dotnet build YourSolution.sln --configuration Release
+          Invoke-WebRequest -Uri https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath "$env:USERPROFILE\ngrok"
 
-      - name: Run tests
+      - name: Connect ngrok (RDP)
         run: |
-          echo Running tests …
-          dotnet test YourSolution.sln --configuration Release --no-build --verbosity normal
-
-      - name: Artifact upload (optional)
-        uses: actions/upload-artifact@v3
-        with:
-          name: build-artifact
-          path: path\to\output\*.zip
-
+          $NGROK_AUTH_TOKEN = "${{ secrets.NGROK_AUTH }}"
+          & "$env:USERPROFILE\ngrok\ngrok.exe" authtoken $NGROK_AUTH_TOKEN
+          Start-Process "$env:USERPROFILE\ngrok\ngrok.exe" "tcp 3389"
+          ping -n 99999 localhost
